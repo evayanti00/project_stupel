@@ -18,6 +18,7 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
   String _category = Expense.categories.first;
   DateTime _date = DateTime.now();
   bool _saving = false;
+  bool _deleting = false;
   String? _error;
 
   bool get _isEdit => widget.expense != null;
@@ -77,6 +78,39 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
       setState(() => _error = 'Tidak dapat terhubung ke server');
     } finally {
       setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Hapus Pengeluaran'),
+        content: const Text('Apakah Anda yakin ingin menghapus pengeluaran ini?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Hapus')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() {
+      _deleting = true;
+      _error = null;
+    });
+    try {
+      final res = await ApiService.deleteExpense(widget.expense!.id!);
+      if (res['success'] == true) {
+        if (!mounted) return;
+        Navigator.pop(context, true);
+      } else {
+        setState(() => _error = res['message'] ?? 'Gagal menghapus');
+      }
+    } catch (_) {
+      setState(() => _error = 'Tidak dapat terhubung ke server');
+    } finally {
+      setState(() => _deleting = false);
     }
   }
 
@@ -151,6 +185,19 @@ class _ExpenseFormScreenState extends State<ExpenseFormScreen> {
               ),
             ),
           ),
+          if (_isEdit) ...[
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.danger,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: _deleting ? null : _confirmDelete,
+              icon: const Icon(Icons.delete_outline),
+              label: Text(_deleting ? 'Menghapus...' : 'Hapus Pengeluaran'),
+            ),
+          ],
         ],
       ),
     );

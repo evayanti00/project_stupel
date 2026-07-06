@@ -7,7 +7,9 @@ import '../../theme.dart';
 import 'expense_form_screen.dart';
 
 class ExpensesTab extends StatefulWidget {
-  const ExpensesTab({super.key});
+  final VoidCallback? onExpenseChanged;
+
+  const ExpensesTab({super.key, this.onExpenseChanged});
 
   @override
   State<ExpensesTab> createState() => _ExpensesTabState();
@@ -16,6 +18,7 @@ class ExpensesTab extends StatefulWidget {
 class _ExpensesTabState extends State<ExpensesTab> {
   List<Expense> _expenses = [];
   bool _loading = true;
+  double _balance = 0;
 
   final _currencyFmt = NumberFormat.currency(
       locale: 'id', symbol: 'Rp ', decimalDigits: 0);
@@ -27,16 +30,104 @@ class _ExpensesTabState extends State<ExpensesTab> {
   }
 
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _balance = 0;
+    });
     try {
-      _expenses = await ApiService.getExpenses();
+      final result = await ApiService.getExpensesWithBalance();
+      _expenses = result['expenses'] as List<Expense>;
+      _balance = result['balance'] as double;
     } catch (_) {}
     setState(() => _loading = false);
   }
 
   Future<void> _delete(Expense e) async {
     await ApiService.deleteExpense(e.id!);
+    widget.onExpenseChanged?.call();
     _load();
+  }
+
+  Future<void> _showBalanceDialog(String operation) async {
+    final amountCtrl = TextEditingController();
+    bool saving = false;
+    String? error;
+
+    final actionLabel = operation == 'add' ? 'Tambah' : 'Kurangi';
+    final titleLabel = operation == 'add' ? 'Tambah Saldo' : 'Kurangi Saldo';
+
+    final result = await showDialog<bool>(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => AlertDialog(
+          title: Text(titleLabel),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              if (error != null)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Text(error!, style: const TextStyle(color: AppColors.danger)),
+                ),
+              TextField(
+                controller: amountCtrl,
+                keyboardType: TextInputType.number,
+                decoration: InputDecoration(
+                  labelText: '$actionLabel Saldo (Rp)',
+                  prefixText: 'Rp ',
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: saving ? null : () => Navigator.pop(context, false),
+              child: const Text('Batal'),
+            ),
+            ElevatedButton(
+              onPressed: saving
+                  ? null
+                  : () async {
+                      final value = double.tryParse(amountCtrl.text.replaceAll(RegExp(r'[^0-9\.]'), ''));
+                      if (value == null || value <= 0) {
+                        setDialogState(() => error = 'Nominal harus lebih besar dari 0');
+                        return;
+                      }
+                      setDialogState(() {
+                        saving = true;
+                        error = null;
+                      });
+                      try {
+                        final res = await ApiService.topUpBalance(value, operation: operation);
+                        if (res['success'] == true) {
+                          Navigator.pop(context, true);
+                        } else {
+                          setDialogState(() => error = res['message'] ?? 'Gagal memperbarui saldo');
+                        }
+                      } catch (_) {
+                        setDialogState(() => error = 'Tidak dapat terhubung ke server');
+                      } finally {
+                        setDialogState(() => saving = false);
+                      }
+                    },
+              child: saving
+                  ? const SizedBox(height: 16, width: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                  : Text(actionLabel),
+            ),
+          ],
+        ),
+      ),
+    );
+
+    if (result == true) {
+      widget.onExpenseChanged?.call();
+      await _load();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Saldo berhasil ${operation == 'add' ? 'ditambah' : 'dikurangi'}'), backgroundColor: AppColors.success),
+      );
+    }
   }
 
   double get _total => _expenses.fold(0, (s, e) => s + e.amount);
@@ -66,6 +157,52 @@ class _ExpensesTabState extends State<ExpensesTab> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                const Text('Saldo',
+                                    style: TextStyle(
+                                        color: Colors.white70, fontSize: 13)),
+                                Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    OutlinedButton.icon(
+                                      onPressed: () => _showBalanceDialog('add'),
+                                      style: OutlinedButton.styleFrom(
+                                        side: const BorderSide(color: Colors.white24),
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                      icon: const Icon(Icons.add, size: 16),
+                                      label: const Text('Tambah', style: TextStyle(fontSize: 12)),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    OutlinedButton.icon(
+                                      onPressed: () => _showBalanceDialog('subtract'),
+                                      style: OutlinedButton.styleFrom(
+                                        side: const BorderSide(color: Colors.white24),
+                                        foregroundColor: Colors.white,
+                                        shape: RoundedRectangleBorder(
+                                          borderRadius: BorderRadius.circular(12),
+                                        ),
+                                      ),
+                                      icon: const Icon(Icons.remove, size: 16),
+                                      label: const Text('Kurangi', style: TextStyle(fontSize: 12)),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            Text(_currencyFmt.format(_balance),
+                                style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 28,
+                                    fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 16),
                             const Text('Total Pengeluaran',
                                 style: TextStyle(
                                     color: Colors.white70, fontSize: 13)),
@@ -73,7 +210,7 @@ class _ExpensesTabState extends State<ExpensesTab> {
                             Text(_currencyFmt.format(_total),
                                 style: const TextStyle(
                                     color: Colors.white,
-                                    fontSize: 28,
+                                    fontSize: 24,
                                     fontWeight: FontWeight.w700)),
                             const SizedBox(height: 8),
                             Text('${_expenses.length} transaksi tercatat',
@@ -82,6 +219,16 @@ class _ExpensesTabState extends State<ExpensesTab> {
                           ],
                         ),
                       ),
+                    ),
+                  ),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                      child: Text('Riwayat Pengeluaran',
+                          style: TextStyle(
+                              color: AppColors.textPrimary,
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600)),
                     ),
                   ),
                   if (_expenses.isEmpty)
@@ -222,6 +369,9 @@ class _ExpensesTabState extends State<ExpensesTab> {
       MaterialPageRoute(
           builder: (_) => ExpenseFormScreen(expense: expense)),
     );
-    if (result == true) _load();
+    if (result == true) {
+      widget.onExpenseChanged?.call();
+      _load();
+    }
   }
 }

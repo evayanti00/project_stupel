@@ -24,5 +24,11 @@ $stmt = $db->prepare(
 );
 $stmt->execute([$userId, $desc, $amount, $category, $date]);
 
-$expense = $db->query("SELECT * FROM expenses WHERE id = " . $db->lastInsertId())->fetch();
+$lastId = $db->lastInsertId();
+$expense = $db->query("SELECT * FROM expenses WHERE id = $lastId")->fetch();
+
+// deduct user balance
+$stmt = $db->prepare('UPDATE users SET balance = balance - ? WHERE id = ?');
+$stmt->execute([$amount, $userId]);
+
 jsonResponse(true, 'Pengeluaran berhasil ditambahkan', $expense);

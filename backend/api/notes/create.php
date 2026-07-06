@@ -13,14 +13,15 @@ $title   = trim($body['title'] ?? '');
 $content = trim($body['content'] ?? '');
 $isTask  = (int)($body['is_task'] ?? 0);
 $isDone  = (int)($body['is_done'] ?? 0);
+$dueDate = $body['due_date'] ?? null; // expected format YYYY-MM-DD or null
 
 if (!$title) jsonResponse(false, 'Judul harus diisi');
 
 $db   = getDB();
 $stmt = $db->prepare(
-    'INSERT INTO notes (user_id, title, content, is_task, is_done) VALUES (?, ?, ?, ?, ?)'
+    'INSERT INTO notes (user_id, title, content, is_task, is_done, due_date) VALUES (?, ?, ?, ?, ?, ?)'
 );
-$stmt->execute([$userId, $title, $content, $isTask, $isDone]);
+$stmt->execute([$userId, $title, $content, $isTask, $isDone, $dueDate]);
 
 $note = $db->query("SELECT * FROM notes WHERE id = " . $db->lastInsertId())->fetch();
 jsonResponse(true, 'Catatan berhasil ditambahkan', $note);

@@ -2,13 +2,15 @@ class User {
   final int id;
   final String name;
   final String email;
+  final String role;
 
-  User({required this.id, required this.name, required this.email});
+  User({required this.id, required this.name, required this.email, required this.role});
 
   factory User.fromJson(Map<String, dynamic> json) => User(
         id: json['id'],
         name: json['name'],
         email: json['email'],
+        role: json['role'] ?? 'user',
       );
 }
 
@@ -18,6 +20,7 @@ class Note {
   final String content;
   final bool isTask;
   bool isDone;
+  final DateTime? dueDate;
   final DateTime createdAt;
 
   Note({
@@ -26,6 +29,7 @@ class Note {
     required this.content,
     required this.isTask,
     this.isDone = false,
+    this.dueDate,
     required this.createdAt,
   });
 
@@ -35,6 +39,7 @@ class Note {
         content: json['content'],
         isTask: json['is_task'] == 1 || json['is_task'] == true,
         isDone: json['is_done'] == 1 || json['is_done'] == true,
+        dueDate: json['due_date'] != null && json['due_date'] != '' ? DateTime.parse(json['due_date']) : null,
         createdAt: DateTime.parse(json['created_at']),
       );
 
@@ -43,6 +48,7 @@ class Note {
         'content': content,
         'is_task': isTask ? 1 : 0,
         'is_done': isDone ? 1 : 0,
+      'due_date': dueDate != null ? dueDate!.toIso8601String().split('T').first : null,
       };
 }
 

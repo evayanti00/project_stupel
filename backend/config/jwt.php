@@ -27,13 +27,43 @@ function verifyToken(string $token): ?array {
     return $data;
 }
 
+function getAuthHeader(): string {
+    // Robustly retrieve Authorization header across different SAPI/servers
+    if (function_exists('getallheaders')) {
+        $h = getallheaders();
+        if (!empty($h['Authorization'])) return $h['Authorization'];
+        if (!empty($h['authorization'])) return $h['authorization'];
+    }
+    if (!empty($_SERVER['HTTP_AUTHORIZATION'])) return $_SERVER['HTTP_AUTHORIZATION'];
+    if (!empty($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) return $_SERVER['REDIRECT_HTTP_AUTHORIZATION'];
+    // fallback: look for Authorization in apache_request_headers if available
+    if (function_exists('apache_request_headers')) {
+        $h = apache_request_headers();
+        if (!empty($h['Authorization'])) return $h['Authorization'];
+        if (!empty($h['authorization'])) return $h['authorization'];
+    }
+    return '';
+}
+
+function getAuthToken(): string {
+    $header = getAuthHeader();
+    if (str_starts_with($header, 'Bearer ')) {
+        return substr($header, 7);
+    }
+    if (!empty($_GET['token'])) {
+        return trim($_GET['token']);
+    }
+    if (!empty($_POST['token'])) {
+        return trim($_POST['token']);
+    }
+    return '';
+}
+
 function requireAuth(): array {
-    $headers = getallheaders();
-    $auth = $headers['Authorization'] ?? $headers['authorization'] ?? '';
-    if (!str_starts_with($auth, 'Bearer ')) {
+    $token = getAuthToken();
+    if (!$token) {
         jsonResponse(false, 'Token tidak ditemukan', null, 401);
     }
-    $token = substr($auth, 7);
     $payload = verifyToken($token);
     if (!$payload) {
         jsonResponse(false, 'Token tidak valid atau sudah kadaluarsa', null, 401);

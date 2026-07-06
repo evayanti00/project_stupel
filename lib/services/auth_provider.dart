@@ -18,8 +18,9 @@ class AuthProvider extends ChangeNotifier {
     final name = prefs.getString('user_name');
     final email = prefs.getString('user_email');
     final id = prefs.getInt('user_id');
+    final role = prefs.getString('user_role') ?? 'user';
     if (token != null && name != null && email != null && id != null) {
-      _user = User(id: id, name: name, email: email);
+      _user = User(id: id, name: name, email: email, role: role);
       notifyListeners();
     }
   }
@@ -38,6 +39,7 @@ class AuthProvider extends ChangeNotifier {
           await prefs.setString('token', data['token'] as String);
           await prefs.setString('user_name', data['user']['name'] as String);
           await prefs.setString('user_email', data['user']['email'] as String);
+          await prefs.setString('user_role', data['user']['role'] as String);
           await prefs.setInt('user_id', data['user']['id'] as int);
           _user = User.fromJson(data['user'] as Map<String, dynamic>);
           return null;
@@ -60,11 +62,17 @@ class AuthProvider extends ChangeNotifier {
     }
   }
 
-  Future<String?> register(String name, String email, String password) async {
+  Future<String?> register(String name, String email, String password, {String? token, double? balance}) async {
     _loading = true;
     notifyListeners();
     try {
-      final res = await ApiService.register(name, email, password);
+      final res = await ApiService.register(
+        name,
+        email,
+        password,
+        token: token,
+        balance: balance,
+      );
       if (res['success'] == true) return null;
       return res['message'] ?? 'Registrasi gagal';
     } catch (e, st) {

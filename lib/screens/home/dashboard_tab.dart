@@ -6,7 +6,9 @@ import '../../services/auth_provider.dart';
 import '../../theme.dart';
 
 class DashboardTab extends StatefulWidget {
-  const DashboardTab({super.key});
+  final ValueNotifier<int>? refreshTrigger;
+
+  const DashboardTab({super.key, this.refreshTrigger});
 
   @override
   State<DashboardTab> createState() => _DashboardTabState();
@@ -15,21 +17,57 @@ class DashboardTab extends StatefulWidget {
 class _DashboardTabState extends State<DashboardTab> {
   Map<String, dynamic>? _data;
   bool _loading = true;
+  String? _error;
+  DateTime? _lastUpdated;
 
   @override
   void initState() {
     super.initState();
+    widget.refreshTrigger?.addListener(_load);
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant DashboardTab oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.refreshTrigger != widget.refreshTrigger) {
+      oldWidget.refreshTrigger?.removeListener(_load);
+      widget.refreshTrigger?.addListener(_load);
+    }
+  }
+
+  @override
+  void dispose() {
+    widget.refreshTrigger?.removeListener(_load);
+    super.dispose();
+  }
+
   Future<void> _load() async {
-    setState(() => _loading = true);
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
     try {
       final data = await ApiService.getDashboard();
-      setState(() => _data = data['data']);
-    } catch (_) {}
+      if (!mounted) return;
+      if (data['success'] != true) {
+        setState(() => _error = data['message'] ?? 'Gagal memuat dashboard');
+      } else {
+        setState(() {
+          _data = data['data'] as Map<String, dynamic>?;
+          _lastUpdated = DateTime.now();
+        });
+      }
+    } catch (e, st) {
+      if (!mounted) return;
+      setState(() => _error = 'Terjadi kesalahan: ${e.toString()}');
+      debugPrint('DashboardTab._load error: $e\n$st');
+    }
+    if (!mounted) return;
     setState(() => _loading = false);
   }
+
+  Future<void> refresh() async => _load();
 
   @override
   Widget build(BuildContext context) {
@@ -78,7 +116,25 @@ class _DashboardTabState extends State<DashboardTab> {
           ),
 
           const SizedBox(height: 24),
-          Text('Ringkasan', style: Theme.of(context).textTheme.titleMedium),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text('Ringkasan', style: Theme.of(context).textTheme.titleMedium),
+              IconButton(
+                onPressed: _load,
+                icon: const Icon(Icons.refresh, color: AppColors.primary),
+                tooltip: 'Muat ulang',
+              ),
+            ],
+          ),
+          if (_lastUpdated != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: Text(
+                'Terakhir diperbarui: ${DateFormat('HH:mm:ss', 'id').format(_lastUpdated!)}',
+                style: const TextStyle(color: AppColors.textSecondary, fontSize: 12),
+              ),
+            ),
           const SizedBox(height: 12),
 
           if (_loading)
@@ -87,12 +143,24 @@ class _DashboardTabState extends State<DashboardTab> {
               padding: EdgeInsets.all(40),
               child: CircularProgressIndicator(),
             ))
+          else if (_error != null)
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.danger.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: Text(
+                _error!,
+                style: const TextStyle(color: AppColors.danger),
+              ),
+            )
           else ...[
             Row(
               children: [
                 Expanded(
                   child: _StatCard(
-                    label: 'Tugas Aktif',
+                    label: 'Tugas Belum Selesai',
                     value: '${_data?['pending_tasks'] ?? 0}',
                     icon: Icons.task_alt_rounded,
                     color: AppColors.accent,
@@ -110,15 +178,37 @@ class _DashboardTabState extends State<DashboardTab> {
               ],
             ),
             const SizedBox(height: 12),
-            _StatCard(
-              label: 'Total Pengeluaran Bulan Ini',
-              value: NumberFormat.currency(
-                      locale: 'id', symbol: 'Rp ', decimalDigits: 0)
-                  .format(_data?['total_expenses'] ?? 0),
-              icon: Icons.account_balance_wallet_rounded,
-              color: AppColors.danger,
-              wide: true,
+            // Pengeluaran: toggle minggu/bulan
+            _ExpenseCard(
+              weekAmount: ((_data?['week_expenses'] as num?) ?? 0).toDouble(),
+              monthAmount: ((_data?['total_expenses'] as num?) ?? 0).toDouble(),
             ),
+            const SizedBox(height: 12),
+            _StatCard(
+              label: 'Tugas Prioritas',
+              value: '${_data?['priority_tasks'] ?? 0}',
+              icon: Icons.upcoming_rounded,
+              color: AppColors.accent,
+            ),
+            const SizedBox(height: 12),
+            // List upcoming tasks
+            if (((_data?['upcoming_tasks'] as List?) ?? []).isNotEmpty)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var t in ((_data?['upcoming_tasks'] as List?) ?? []))
+                    Card(
+                      child: ListTile(
+                        title: Text(t['title'] ?? ''),
+                        subtitle: Text(t['content'] ?? ''),
+                        trailing: Text(
+                          t['due_date'] ?? '',
+                          style: const TextStyle(color: AppColors.textSecondary),
+                        ),
+                      ),
+                    ),
+                ],
+              ),
           ],
 
           const SizedBox(height: 24),
@@ -223,6 +313,72 @@ class _StatCard extends StatelessWidget {
                           color: AppColors.textSecondary, fontSize: 12)),
                 ],
               ),
+      ),
+    );
+  }
+}
+
+class _ExpenseCard extends StatefulWidget {
+  final double weekAmount;
+  final double monthAmount;
+
+  const _ExpenseCard({required this.weekAmount, required this.monthAmount});
+
+  @override
+  State<_ExpenseCard> createState() => _ExpenseCardState();
+}
+
+class _ExpenseCardState extends State<_ExpenseCard> {
+  String _view = 'month';
+
+  @override
+  Widget build(BuildContext context) {
+    final value = _view == 'week' ? widget.weekAmount : widget.monthAmount;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text('Pengeluaran', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                ToggleButtons(
+                  isSelected: [_view == 'week', _view == 'month'],
+                  onPressed: (i) => setState(() => _view = i == 0 ? 'week' : 'month'),
+                  borderRadius: BorderRadius.circular(8),
+                  selectedColor: Colors.white,
+                  color: AppColors.primary,
+                  fillColor: AppColors.primary,
+                  children: const [Padding(padding: EdgeInsets.symmetric(horizontal:12), child: Text('Minggu')), Padding(padding: EdgeInsets.symmetric(horizontal:12), child: Text('Bulan'))],
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.danger.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.account_balance_wallet_rounded, color: AppColors.danger, size: 20),
+                ),
+                const SizedBox(width: 12),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(NumberFormat.currency(locale: 'id', symbol: 'Rp ', decimalDigits: 0).format(value), style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700, color: AppColors.textPrimary)),
+                    const SizedBox(height: 4),
+                    Text(_view == 'week' ? 'Pengeluaran Minggu Ini' : 'Total Pengeluaran Bulan Ini', style: const TextStyle(color: AppColors.textSecondary, fontSize: 12)),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

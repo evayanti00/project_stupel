@@ -5,7 +5,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/models.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://localhost/project_stupel/backend/api';
+  static String get baseUrl {
+    if (Platform.isAndroid) {
+      return 'http://10.0.2.2/project_stupel/backend/api';
+    }
+    if (Platform.isWindows) {
+      return 'http://127.0.0.1/project_stupel/backend/api';
+    }
+    return 'http://localhost/project_stupel/backend/api';
+  }
 
   static Future<String?> getToken() async {
     final prefs = await SharedPreferences.getInstance();
@@ -24,11 +32,15 @@ class ApiService {
   // ── AUTH ─────────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> register(
-      String name, String email, String password) async {
+      String name, String email, String password,
+      {String? token, double? balance}) async {
+    final body = <String, dynamic>{'name': name, 'email': email, 'password': password};
+    if (token != null && token.isNotEmpty) body['token'] = token;
+    if (balance != null) body['balance'] = balance;
     final res = await http.post(
       Uri.parse('$baseUrl/auth/register.php'),
       headers: await _headers(auth: false),
-      body: jsonEncode({'name': name, 'email': email, 'password': password}),
+      body: jsonEncode(body),
     );
     return jsonDecode(res.body);
   }
@@ -100,7 +112,18 @@ class ApiService {
       headers: await _headers(),
     );
     final data = jsonDecode(res.body);
-    return (data['data'] as List).map((e) => Expense.fromJson(e)).toList();
+    return (data['data']['expenses'] as List).map((e) => Expense.fromJson(e)).toList();
+  }
+
+  static Future<Map<String, dynamic>> getExpensesWithBalance() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/expenses/index.php'),
+      headers: await _headers(),
+    );
+    final data = jsonDecode(res.body);
+    final expenses = (data['data']['expenses'] as List).map((e) => Expense.fromJson(e)).toList();
+    final balance = (data['data']['balance'] as num?)?.toDouble() ?? 0;
+    return {'expenses': expenses, 'balance': balance};
   }
 
   static Future<Map<String, dynamic>> createExpense(Expense e) async {
@@ -108,6 +131,15 @@ class ApiService {
       Uri.parse('$baseUrl/expenses/create.php'),
       headers: await _headers(),
       body: jsonEncode(e.toJson()),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> topUpBalance(double amount, {String operation = 'add'}) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/expenses/topup.php'),
+      headers: await _headers(),
+      body: jsonEncode({'amount': amount, 'operation': operation}),
     );
     return jsonDecode(res.body);
   }
@@ -135,6 +167,24 @@ class ApiService {
     final res = await http.get(
       Uri.parse('$baseUrl/dashboard.php'),
       headers: await _headers(),
+    );
+    return jsonDecode(res.body);
+  }
+
+  // ── PROFILE ─────────────────────────────────────────────────────────────
+  static Future<Map<String, dynamic>> getProfile() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/user/profile.php'),
+      headers: await _headers(),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> updateProfile(Map<String, dynamic> body) async {
+    final res = await http.put(
+      Uri.parse('$baseUrl/user/profile.php'),
+      headers: await _headers(),
+      body: jsonEncode(body),
     );
     return jsonDecode(res.body);
   }

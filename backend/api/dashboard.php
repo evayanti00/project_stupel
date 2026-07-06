@@ -24,8 +24,23 @@ $stmt = $db->prepare(
 $stmt->execute([$userId]);
 $totalExpenses = (float)$stmt->fetchColumn();
 
+
+$stmt = $db->prepare(
+    'SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE user_id = ? AND YEARWEEK(date, 1) = YEARWEEK(CURDATE(), 1)'
+);
+$stmt->execute([$userId]);
+$weekExpenses = (float)$stmt->fetchColumn();
+
+
+$stmt = $db->prepare('SELECT id, title, content, is_task, is_done, created_at, due_date FROM notes WHERE user_id = ? AND is_task = 1 AND is_done = 0 AND due_date IS NOT NULL AND due_date BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY) ORDER BY due_date ASC LIMIT 5');
+$stmt->execute([$userId]);
+$upcomingTasks = $stmt->fetchAll();
+
 jsonResponse(true, 'OK', [
-    'pending_tasks'  => $pendingTasks,
-    'total_notes'    => $totalNotes,
-    'total_expenses' => $totalExpenses,
+    'pending_tasks'   => $pendingTasks,
+    'total_notes'     => $totalNotes,
+    'total_expenses'  => $totalExpenses,
+    'week_expenses'   => $weekExpenses,
+    'priority_tasks'  => count($upcomingTasks),
+    'upcoming_tasks'  => $upcomingTasks,
 ]);

@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../../services/auth_provider.dart';
 import '../../theme.dart';
 import '../auth/login_screen.dart';
+import 'profile_screen.dart';
 import 'dashboard_tab.dart';
 import '../notes/notes_tab.dart';
 import '../expenses/expenses_tab.dart';
@@ -16,11 +17,12 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   int _idx = 0;
+  final ValueNotifier<int> _dashboardRefreshTrigger = ValueNotifier<int>(0);
 
-  final _tabs = const [
-    DashboardTab(),
+  late final List<Widget> _tabs = [
+    DashboardTab(refreshTrigger: _dashboardRefreshTrigger),
     NotesTab(),
-    ExpensesTab(),
+    ExpensesTab(onExpenseChanged: () => _dashboardRefreshTrigger.value++),
   ];
 
   void _logout() async {
@@ -58,6 +60,7 @@ class _HomeScreenState extends State<HomeScreen> {
             child: PopupMenuButton<String>(
               onSelected: (v) {
                 if (v == 'logout') _logout();
+                if (v == 'profile') Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
               },
               itemBuilder: (_) => [
                 PopupMenuItem(
@@ -68,6 +71,16 @@ class _HomeScreenState extends State<HomeScreen> {
                           color: AppColors.textPrimary)),
                 ),
                 const PopupMenuDivider(),
+                const PopupMenuItem(
+                  value: 'profile',
+                  child: Row(
+                    children: [
+                      Icon(Icons.person, size: 18, color: AppColors.primary),
+                      SizedBox(width: 8),
+                      Text('Profil'),
+                    ],
+                  ),
+                ),
                 const PopupMenuItem(
                   value: 'logout',
                   child: Row(

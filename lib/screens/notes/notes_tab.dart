@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../models/models.dart';
 import '../../services/api_service.dart';
+import 'package:provider/provider.dart';
+import '../../services/auth_provider.dart';
 import '../../theme.dart';
 import 'note_form_screen.dart';
 
@@ -37,6 +39,11 @@ class _NotesTabState extends State<NotesTab>
       _notes = await ApiService.getNotes();
     } catch (_) {}
     setState(() => _loading = false);
+    // notify parent/dashboard to refresh counts
+    try {
+      final auth = context.read<AuthProvider>();
+      auth.notifyListeners();
+    } catch (_) {}
   }
 
   Future<void> _delete(Note note) async {

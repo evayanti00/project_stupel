@@ -38,5 +38,7 @@ jsonResponse(true, 'Login berhasil', [
         'name'  => $user['name'],
         'email' => $user['email'],
         'role'  => $user['role'],
+        'is_verified' => (int)($user['is_verified'] ?? 0),
+        'balance' => isset($user['balance']) ? (float)$user['balance'] : 0,
     ],
 ]);

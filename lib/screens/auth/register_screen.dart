@@ -14,6 +14,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   final _nameCtrl = TextEditingController();
   final _emailCtrl = TextEditingController();
   final _passCtrl = TextEditingController();
+  final _tokenCtrl = TextEditingController();
   bool _obscure = true;
   String? _error;
 
@@ -27,7 +28,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => _error = null);
     final auth = context.read<AuthProvider>();
     final err = await auth.register(
-        _nameCtrl.text.trim(), _emailCtrl.text.trim(), _passCtrl.text);
+      _nameCtrl.text.trim(), _emailCtrl.text.trim(), _passCtrl.text,
+      token: _tokenCtrl.text.trim().isEmpty ? null : _tokenCtrl.text.trim(),
+    );
     if (!mounted) return;
     if (err != null) {
       setState(() => _error = err);

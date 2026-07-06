@@ -15,7 +15,9 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
   final _titleCtrl = TextEditingController();
   final _contentCtrl = TextEditingController();
   bool _isTask = false;
+  DateTime? _dueDate;
   bool _saving = false;
+  bool _deleting = false;
   String? _error;
 
   bool get _isEdit => widget.note != null;
@@ -27,7 +29,18 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
       _titleCtrl.text = widget.note!.title;
       _contentCtrl.text = widget.note!.content;
       _isTask = widget.note!.isTask;
+      _dueDate = widget.note!.dueDate;
     }
+  }
+
+  Future<void> _pickDueDate() async {
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _dueDate ?? DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now().add(const Duration(days: 365 * 5)),
+    );
+    if (picked != null) setState(() => _dueDate = picked);
   }
 
   Future<void> _save() async {
@@ -46,6 +59,7 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
         content: _contentCtrl.text.trim(),
         isTask: _isTask,
         isDone: widget.note?.isDone ?? false,
+          dueDate: _dueDate,
         createdAt: widget.note?.createdAt ?? DateTime.now(),
       );
       final res = _isEdit
@@ -60,6 +74,39 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
       setState(() => _error = 'Tidak dapat terhubung ke server');
     } finally {
       setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _confirmDelete() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Hapus Catatan'),
+        content: const Text('Apakah Anda yakin ingin menghapus catatan ini?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Hapus')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    setState(() {
+      _deleting = true;
+      _error = null;
+    });
+    try {
+      final res = await ApiService.deleteNote(widget.note!.id!);
+      if (res['success'] == true) {
+        if (!mounted) return;
+        Navigator.pop(context, true);
+      } else {
+        setState(() => _error = res['message'] ?? 'Gagal menghapus');
+      }
+    } catch (_) {
+      setState(() => _error = 'Tidak dapat terhubung ke server');
+    } finally {
+      setState(() => _deleting = false);
     }
   }
 
@@ -136,7 +183,16 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
                 ],
               ),
             ),
-          ),
+            ),
+            const SizedBox(height: 12),
+            if (_isTask)
+              Card(
+                child: ListTile(
+                  leading: const Icon(Icons.calendar_today, color: AppColors.textSecondary),
+                  title: Text(_dueDate == null ? 'Pilih tanggal deadline' : '${_dueDate!.day}/${_dueDate!.month}/${_dueDate!.year}'),
+                  trailing: TextButton(onPressed: _pickDueDate, child: const Text('Pilih')),
+                ),
+              ),
           const SizedBox(height: 16),
           TextFormField(
             controller: _titleCtrl,
@@ -152,6 +208,19 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
                 alignLabelWithHint: true),
             maxLines: 8,
           ),
+          if (_isEdit) ...[
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.danger,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+              ),
+              onPressed: _deleting ? null : _confirmDelete,
+              icon: const Icon(Icons.delete_outline),
+              label: Text(_deleting ? 'Menghapus...' : 'Hapus Catatan'),
+            ),
+          ],
         ],
       ),
     );

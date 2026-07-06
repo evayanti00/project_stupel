@@ -10,9 +10,14 @@ $body = getRequestBody();
 $name     = trim($body['name'] ?? '');
 $email    = trim($body['email'] ?? '');
 $password = $body['password'] ?? '';
+$inviteToken = trim($body['token'] ?? '');
+$balance  = isset($body['balance']) ? (float)$body['balance'] : 0;
 
 if (!$name || !$email || !$password) {
     jsonResponse(false, 'Semua field harus diisi');
+}
+if ($balance < 0) {
+    jsonResponse(false, 'Saldo awal tidak boleh negatif');
 }
 if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
     jsonResponse(false, 'Format email tidak valid');
@@ -28,8 +33,22 @@ if ($stmt->fetch()) {
     jsonResponse(false, 'Email sudah terdaftar');
 }
 
+$isVerified = 0;
+if ($inviteToken) {
+    $stmt = $db->prepare('SELECT id FROM invitations WHERE token = ? AND email = ? AND status = "pending"');
+    $stmt->execute([$inviteToken, $email]);
+    if (!$stmt->fetch()) {
+        jsonResponse(false, 'Kode undangan tidak valid atau sudah digunakan');
+    }
+    $isVerified = 1;
+}
+
 $hash = password_hash($password, PASSWORD_BCRYPT);
-$stmt = $db->prepare('INSERT INTO users (name, email, password) VALUES (?, ?, ?)');
-$stmt->execute([$name, $email, $hash]);
+$stmt = $db->prepare('INSERT INTO users (name, email, password, is_verified, balance) VALUES (?, ?, ?, ?, ?)');
+$stmt->execute([$name, $email, $hash, $isVerified, $balance]);
+
+if ($inviteToken) {
+    $db->prepare('UPDATE invitations SET status = "used", used_at = NOW() WHERE token = ?')->execute([$inviteToken]);
+}
 
 jsonResponse(true, 'Akun berhasil dibuat');

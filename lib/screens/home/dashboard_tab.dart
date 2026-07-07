@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
+import '../../models/models.dart';
 import '../../services/api_service.dart';
 import '../../services/auth_provider.dart';
 import '../../theme.dart';
+import '../notes/note_detail_screen.dart';
 
 class DashboardTab extends StatefulWidget {
   final ValueNotifier<int>? refreshTrigger;
@@ -37,6 +39,39 @@ class _DashboardTabState extends State<DashboardTab> {
       // Keep original text when content is not Quill delta JSON.
     }
     return text;
+  }
+
+  Future<void> _openTaskDetail(Map<String, dynamic> rawTask) async {
+    final id = rawTask['id'];
+    final title = (rawTask['title'] ?? '').toString();
+    if (id is! int || title.isEmpty) return;
+
+    final note = Note(
+      id: id,
+      title: title,
+      content: (rawTask['content'] ?? '').toString(),
+      isTask: true,
+      isDone: (rawTask['is_done'] == 1 || rawTask['is_done'] == true),
+      dueDate: rawTask['due_date'] != null && rawTask['due_date'].toString().isNotEmpty
+          ? DateTime.tryParse(rawTask['due_date'].toString())
+          : null,
+      createdAt: rawTask['created_at'] != null
+          ? (DateTime.tryParse(rawTask['created_at'].toString()) ?? DateTime.now())
+          : DateTime.now(),
+      images: const [],
+      priority: rawTask['priority']?.toString(),
+      status: rawTask['status']?.toString(),
+      description: rawTask['description']?.toString(),
+    );
+
+    final updated = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note)),
+    );
+
+    if (updated == true) {
+      await _load();
+    }
   }
 
   @override
@@ -218,6 +253,7 @@ class _DashboardTabState extends State<DashboardTab> {
                   for (var t in ((_data?['upcoming_tasks'] as List?) ?? []))
                     Card(
                       child: ListTile(
+                        onTap: () => _openTaskDetail(t as Map<String, dynamic>),
                         title: Text(t['title'] ?? ''),
                         subtitle: Text(
                           _toPlainText(t['content']),

@@ -209,15 +209,6 @@ class ApiService {
     return jsonDecode(response.body) as Map<String, dynamic>;
   }
 
-  static Future<Map<String, dynamic>> resetPassword(String email, {String? newPassword}) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/auth/reset-password.php'),
-      headers: await _headers(auth: false),
-      body: jsonEncode({'email': email, if (newPassword != null) 'new_password': newPassword}),
-    );
-    return jsonDecode(res.body);
-  }
-
   static Future<Map<String, dynamic>> getAdminUsers() async {
     final res = await http.get(
       Uri.parse('$baseUrl/admin/users.php'),
@@ -259,12 +250,4 @@ class ApiService {
     return jsonDecode(res.body);
   }
 
-  static Future<Map<String, dynamic>> resetUserPassword(int id) async {
-    final res = await http.post(
-      Uri.parse('$baseUrl/admin/reset-user-password.php'),
-      headers: await _headers(),
-      body: jsonEncode({'id': id}),
-    );
-    return jsonDecode(res.body);
-  }
 }

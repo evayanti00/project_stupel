@@ -6,6 +6,7 @@ import '../../services/api_service.dart';
 import '../../services/notification_service.dart';
 import '../../theme.dart';
 import 'note_form_screen.dart';
+import 'note_detail_screen.dart';
 
 class TasksTab extends StatefulWidget {
   const TasksTab({super.key});
@@ -59,6 +60,16 @@ class _TasksTabState extends State<TasksTab> {
       MaterialPageRoute(
         builder: (_) => NoteFormScreen(note: note, initialIsTask: note == null),
       ),
+    );
+    if (result == true) {
+      await _load();
+    }
+  }
+
+  void _openDetail(Note note) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note)),
     );
     if (result == true) {
       await _load();
@@ -149,7 +160,7 @@ class _TasksTabState extends State<TasksTab> {
                                               style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
                                             )
                                           : null,
-                                      onTap: () => _openForm(task),
+                                      onTap: () => _openDetail(task),
                                     ),
                                   ),
                                 ),

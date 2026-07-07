@@ -125,16 +125,6 @@
 			]
 		},
 		{
-			"label": "Validate SMTP PHP files",
-			"type": "shell",
-			"command": "powershell",
-			"args": [
-				"-NoProfile",
-				"-Command",
-				"php -l backend/config/mail.php ; php -l backend/api/auth/register.php ; php -l backend/api/auth/resend-verification.php"
-			]
-		},
-		{
 			"label": "Lint updated admin PHP endpoints",
 			"type": "shell",
 			"command": "powershell",
@@ -155,13 +145,13 @@
 			]
 		},
 		{
-			"label": "Lint verification-disabled auth endpoints",
+			"label": "Lint after cleanup",
 			"type": "shell",
 			"command": "powershell",
 			"args": [
 				"-NoProfile",
 				"-Command",
-				"php -l backend/api/auth/verify-status.php ; php -l backend/api/auth/resend-verification.php ; php -l backend/api/auth/verify-email.php ; php -l backend/api/auth/login.php ; php -l backend/api/auth/register.php"
+				"php -l backend/api/auth/login.php ; php -l backend/api/auth/register.php ; php -l backend/api/admin/users.php ; php -l backend/api/admin/stats.php"
 			]
 		}
 	]

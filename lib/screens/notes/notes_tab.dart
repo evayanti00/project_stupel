@@ -5,6 +5,7 @@ import '../../services/api_service.dart';
 import '../../services/notification_service.dart';
 import '../../theme.dart';
 import 'note_form_screen.dart';
+import 'note_detail_screen.dart';
 
 class NotesTab extends StatefulWidget {
   const NotesTab({super.key});
@@ -86,7 +87,7 @@ class _NotesTabState extends State<NotesTab> {
                 : _NoteList(
                     items: notes,
                     onDelete: _delete,
-                    onTap: _openForm,
+                    onTap: _openDetail,
                     onToggle: null,
                     onRefresh: _load,
                   ),
@@ -95,7 +96,7 @@ class _NotesTabState extends State<NotesTab> {
       ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'fab-notes',
-        onPressed: () => _openForm(null),
+        onPressed: _openCreate,
         backgroundColor: AppColors.primary,
         icon: const Icon(Icons.add, color: Colors.white),
         label: const Text('Tambah', style: TextStyle(color: Colors.white)),
@@ -103,10 +104,18 @@ class _NotesTabState extends State<NotesTab> {
     );
   }
 
-  void _openForm(Note? note) async {
+  void _openCreate() async {
     final result = await Navigator.push(
       context,
-      MaterialPageRoute(builder: (_) => NoteFormScreen(note: note)),
+      MaterialPageRoute(builder: (_) => const NoteFormScreen()),
+    );
+    if (result == true) _load();
+  }
+
+  void _openDetail(Note note) async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => NoteDetailScreen(note: note)),
     );
     if (result == true) _load();
   }
@@ -115,7 +124,7 @@ class _NotesTabState extends State<NotesTab> {
 class _NoteList extends StatelessWidget {
   final List<Note> items;
   final Function(Note) onDelete;
-  final Function(Note?) onTap;
+  final Function(Note) onTap;
   final Function(Note)? onToggle;
   final Future<void> Function() onRefresh;
 

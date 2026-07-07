@@ -2,8 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
 import '../../models/models.dart';
 import '../../services/api_service.dart';
-import 'package:provider/provider.dart';
-import '../../services/auth_provider.dart';
+import '../../services/notification_service.dart';
 import '../../theme.dart';
 import 'note_form_screen.dart';
 
@@ -14,22 +13,20 @@ class NotesTab extends StatefulWidget {
   State<NotesTab> createState() => _NotesTabState();
 }
 
-class _NotesTabState extends State<NotesTab>
-    with SingleTickerProviderStateMixin {
+class _NotesTabState extends State<NotesTab> {
   List<Note> _notes = [];
   bool _loading = true;
-  late TabController _tabCtrl;
+  final TextEditingController _searchCtrl = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _tabCtrl = TabController(length: 2, vsync: this);
     _load();
   }
 
   @override
   void dispose() {
-    _tabCtrl.dispose();
+    _searchCtrl.dispose();
     super.dispose();
   }
 
@@ -37,13 +34,11 @@ class _NotesTabState extends State<NotesTab>
     setState(() => _loading = true);
     try {
       _notes = await ApiService.getNotes();
+      await NotificationService.scheduleTaskDeadlineReminders(
+        _notes.where((n) => n.isTask).toList(),
+      );
     } catch (_) {}
     setState(() => _loading = false);
-    // notify parent/dashboard to refresh counts
-    try {
-      final auth = context.read<AuthProvider>();
-      auth.notifyListeners();
-    } catch (_) {}
   }
 
   Future<void> _delete(Note note) async {
@@ -51,56 +46,55 @@ class _NotesTabState extends State<NotesTab>
     _load();
   }
 
-  Future<void> _toggleDone(Note note) async {
-    note.isDone = !note.isDone;
-    await ApiService.updateNote(note);
-    _load();
-  }
-
   @override
   Widget build(BuildContext context) {
-    final notes = _notes.where((n) => !n.isTask).toList();
-    final tasks = _notes.where((n) => n.isTask).toList();
-    final pendingTasks = tasks.where((t) => !t.isDone).length;
+    final query = _searchCtrl.text.toLowerCase();
+    final notes = _notes.where((n) => !n.isTask && (query.isEmpty || n.title.toLowerCase().contains(query) || n.plainContent.toLowerCase().contains(query))).toList();
 
     return Scaffold(
       body: Column(
         children: [
           Container(
+            width: double.infinity,
             color: Colors.white,
-            child: TabBar(
-              controller: _tabCtrl,
-              labelColor: AppColors.primary,
-              unselectedLabelColor: AppColors.textSecondary,
-              indicatorColor: AppColors.primary,
-              tabs: [
-                Tab(text: 'Catatan (${notes.length})'),
-                Tab(text: 'Tugas ($pendingTasks pending)'),
-              ],
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Text(
+              'Catatan (${notes.length})',
+              style: const TextStyle(
+                color: AppColors.textPrimary,
+                fontSize: 15,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: TextField(
+              controller: _searchCtrl,
+              decoration: InputDecoration(
+                hintText: 'Cari catatan...',
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+              ),
+              onChanged: (_) => setState(() {}),
             ),
           ),
           Expanded(
             child: _loading
                 ? const Center(child: CircularProgressIndicator())
-                : TabBarView(
-                    controller: _tabCtrl,
-                    children: [
-                      _NoteList(
-                          items: notes,
-                          onDelete: _delete,
-                          onTap: _openForm,
-                          onToggle: null),
-                      _NoteList(
-                          items: tasks,
-                          onDelete: _delete,
-                          onTap: _openForm,
-                          onToggle: _toggleDone),
-                    ],
+                : _NoteList(
+                    items: notes,
+                    onDelete: _delete,
+                    onTap: _openForm,
+                    onToggle: null,
+                    onRefresh: _load,
                   ),
           ),
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'fab-notes',
         onPressed: () => _openForm(null),
         backgroundColor: AppColors.primary,
         icon: const Icon(Icons.add, color: Colors.white),
@@ -123,12 +117,14 @@ class _NoteList extends StatelessWidget {
   final Function(Note) onDelete;
   final Function(Note?) onTap;
   final Function(Note)? onToggle;
+  final Future<void> Function() onRefresh;
 
   const _NoteList({
     required this.items,
     required this.onDelete,
     required this.onTap,
     required this.onToggle,
+    required this.onRefresh,
   });
 
   @override
@@ -157,7 +153,7 @@ class _NoteList extends StatelessWidget {
     }
 
     return RefreshIndicator(
-      onRefresh: () async {},
+      onRefresh: onRefresh,
       child: ListView.builder(
         padding: const EdgeInsets.fromLTRB(16, 16, 16, 80),
         itemCount: items.length,
@@ -223,11 +219,11 @@ class _NoteList extends StatelessWidget {
                           : AppColors.textPrimary,
                     ),
                   ),
-                  subtitle: note.content.isNotEmpty
+                  subtitle: note.plainContent.isNotEmpty
                       ? Padding(
                           padding: const EdgeInsets.only(top: 4),
                           child: Text(
-                            note.content,
+                            note.plainContent,
                             maxLines: 2,
                             overflow: TextOverflow.ellipsis,
                             style: const TextStyle(

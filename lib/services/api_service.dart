@@ -29,6 +29,13 @@ class ApiService {
     return headers;
   }
 
+  static Future<Map<String, String>> _multipartHeaders() async {
+    final headers = <String, String>{};
+    final token = await getToken();
+    if (token != null) headers['Authorization'] = 'Bearer $token';
+    return headers;
+  }
+
   // ── AUTH ─────────────────────────────────────────────────────────────────
 
   static Future<Map<String, dynamic>> register(
@@ -185,6 +192,78 @@ class ApiService {
       Uri.parse('$baseUrl/user/profile.php'),
       headers: await _headers(),
       body: jsonEncode(body),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> uploadProfilePhoto(String filePath) async {
+    final request = http.MultipartRequest(
+      'POST',
+      Uri.parse('$baseUrl/user/upload-photo.php'),
+    );
+    request.headers.addAll(await _multipartHeaders());
+    request.files.add(await http.MultipartFile.fromPath('photo', filePath));
+
+    final streamed = await request.send();
+    final response = await http.Response.fromStream(streamed);
+    return jsonDecode(response.body) as Map<String, dynamic>;
+  }
+
+  static Future<Map<String, dynamic>> resetPassword(String email, {String? newPassword}) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/auth/reset-password.php'),
+      headers: await _headers(auth: false),
+      body: jsonEncode({'email': email, if (newPassword != null) 'new_password': newPassword}),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> getAdminUsers() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/admin/users.php'),
+      headers: await _headers(),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> getAdminUserDetail(int id) async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/admin/user-detail.php?id=$id'),
+      headers: await _headers(),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> getAdminStats() async {
+    final res = await http.get(
+      Uri.parse('$baseUrl/admin/stats.php'),
+      headers: await _headers(),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> toggleUser(int id) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/admin/toggle-user.php'),
+      headers: await _headers(),
+      body: jsonEncode({'id': id}),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> deleteUser(int id) async {
+    final res = await http.delete(
+      Uri.parse('$baseUrl/admin/users.php?id=$id'),
+      headers: await _headers(),
+    );
+    return jsonDecode(res.body);
+  }
+
+  static Future<Map<String, dynamic>> resetUserPassword(int id) async {
+    final res = await http.post(
+      Uri.parse('$baseUrl/admin/reset-user-password.php'),
+      headers: await _headers(),
+      body: jsonEncode({'id': id}),
     );
     return jsonDecode(res.body);
   }

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'dart:convert';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../services/api_service.dart';
@@ -19,6 +20,24 @@ class _DashboardTabState extends State<DashboardTab> {
   bool _loading = true;
   String? _error;
   DateTime? _lastUpdated;
+
+  String _toPlainText(dynamic rawContent) {
+    if (rawContent == null) return '';
+    final text = rawContent.toString();
+    try {
+      final parsed = jsonDecode(text);
+      if (parsed is List) {
+        return parsed
+            .whereType<Map>()
+            .map((e) => (e['insert'] ?? '').toString())
+            .join('')
+            .trim();
+      }
+    } catch (_) {
+      // Keep original text when content is not Quill delta JSON.
+    }
+    return text;
+  }
 
   @override
   void initState() {
@@ -200,7 +219,11 @@ class _DashboardTabState extends State<DashboardTab> {
                     Card(
                       child: ListTile(
                         title: Text(t['title'] ?? ''),
-                        subtitle: Text(t['content'] ?? ''),
+                        subtitle: Text(
+                          _toPlainText(t['content']),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                         trailing: Text(
                           t['due_date'] ?? '',
                           style: const TextStyle(color: AppColors.textSecondary),

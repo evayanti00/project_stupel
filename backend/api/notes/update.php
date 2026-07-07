@@ -21,13 +21,17 @@ $title   = trim($body['title'] ?? '');
 $content = trim($body['content'] ?? '');
 $isTask  = (int)($body['is_task'] ?? 0);
 $isDone  = (int)($body['is_done'] ?? 0);
- $dueDate = $body['due_date'] ?? null;
+$dueDate = $body['due_date'] ?? null;
+$images = json_encode($body['images'] ?? []);
+$description = $body['description'] ?? null;
+$priority = $body['priority'] ?? null;
+$status = $body['status'] ?? null;
 
 if (!$title) jsonResponse(false, 'Judul harus diisi');
 
 $stmt = $db->prepare(
-    'UPDATE notes SET title=?, content=?, is_task=?, is_done=?, due_date=? WHERE id=? AND user_id=?'
+    'UPDATE notes SET title=?, content=?, is_task=?, is_done=?, due_date=?, images=?, description=?, priority=?, status=? WHERE id=? AND user_id=?'
 );
-$stmt->execute([$title, $content, $isTask, $isDone, $dueDate, $id, $userId]);
+$stmt->execute([$title, $content, $isTask, $isDone, $dueDate, $images, $description, $priority, $status, $id, $userId]);
 $note = $db->query("SELECT * FROM notes WHERE id = $id")->fetch();
 jsonResponse(true, 'Catatan berhasil diperbarui', $note);

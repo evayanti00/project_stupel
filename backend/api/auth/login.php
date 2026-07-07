@@ -24,6 +24,12 @@ if (!$user || !password_verify($password, $user['password'])) {
     jsonResponse(false, 'Email atau password salah', null, 401);
 }
 
+if (((int)($user['is_active'] ?? 1)) !== 1) {
+    jsonResponse(false, 'Akun Anda sedang dinonaktifkan oleh admin', null, 403);
+}
+
+$verified = (int)($user['is_verified'] ?? 0);
+
 $token = generateToken([
     'user_id' => $user['id'],
     'email'   => $user['email'],
@@ -38,7 +44,7 @@ jsonResponse(true, 'Login berhasil', [
         'name'  => $user['name'],
         'email' => $user['email'],
         'role'  => $user['role'],
-        'is_verified' => (int)($user['is_verified'] ?? 0),
+        'is_verified' => $verified,
         'balance' => isset($user['balance']) ? (float)$user['balance'] : 0,
     ],
 ]);

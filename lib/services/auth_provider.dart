@@ -19,8 +19,23 @@ class AuthProvider extends ChangeNotifier {
     final email = prefs.getString('user_email');
     final id = prefs.getInt('user_id');
     final role = prefs.getString('user_role') ?? 'user';
+    final phone = prefs.getString('user_phone');
+    final bio = prefs.getString('user_bio');
+    final profilePhotoUrl = prefs.getString('user_profile_photo_url');
+    final isVerified = prefs.getBool('user_is_verified') ?? false;
+    final joined = prefs.getString('user_created_at');
     if (token != null && name != null && email != null && id != null) {
-      _user = User(id: id, name: name, email: email, role: role);
+      _user = User(
+        id: id,
+        name: name,
+        email: email,
+        role: role,
+        phone: phone,
+        bio: bio,
+        profilePhotoUrl: profilePhotoUrl,
+        isVerified: isVerified,
+        createdAt: joined != null ? DateTime.tryParse(joined) : null,
+      );
       notifyListeners();
     }
   }
@@ -30,10 +45,8 @@ class AuthProvider extends ChangeNotifier {
     notifyListeners();
     try {
       final res = await ApiService.login(email, password);
-      print('AuthProvider.login response: $res');
       if (res['success'] == true) {
         final data = res['data'];
-        print('AuthProvider.login data: $data');
         if (data is Map<String, dynamic> && data['token'] != null && data['user'] != null) {
           final prefs = await SharedPreferences.getInstance();
           await prefs.setString('token', data['token'] as String);
@@ -41,6 +54,13 @@ class AuthProvider extends ChangeNotifier {
           await prefs.setString('user_email', data['user']['email'] as String);
           await prefs.setString('user_role', data['user']['role'] as String);
           await prefs.setInt('user_id', data['user']['id'] as int);
+          await prefs.setString('user_phone', (data['user']['phone'] ?? '').toString());
+          await prefs.setString('user_bio', (data['user']['bio'] ?? '').toString());
+          await prefs.setString('user_profile_photo_url', (data['user']['profile_photo_url'] ?? '').toString());
+          await prefs.setBool('user_is_verified', data['user']['is_verified'] == 1 || data['user']['is_verified'] == true);
+          if (data['user']['created_at'] != null) {
+            await prefs.setString('user_created_at', data['user']['created_at'].toString());
+          }
           _user = User.fromJson(data['user'] as Map<String, dynamic>);
           return null;
         }
@@ -48,7 +68,6 @@ class AuthProvider extends ChangeNotifier {
       }
       return res['message'] ?? 'Login gagal';
     } catch (e, st) {
-      // print error details to help debug connectivity issues
       final msg = 'AuthProvider.login exception: $e\n$st';
       print(msg);
       try {
@@ -93,6 +112,23 @@ class AuthProvider extends ChangeNotifier {
     final prefs = await SharedPreferences.getInstance();
     await prefs.clear();
     _user = null;
+    notifyListeners();
+  }
+
+  Future<void> setUserFromProfile(Map<String, dynamic> rawUser) async {
+    final updated = User.fromJson(rawUser);
+    _user = updated;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('user_name', updated.name);
+    await prefs.setString('user_email', updated.email);
+    await prefs.setString('user_role', updated.role);
+    await prefs.setString('user_phone', updated.phone ?? '');
+    await prefs.setString('user_bio', updated.bio ?? '');
+    await prefs.setString('user_profile_photo_url', updated.profilePhotoUrl ?? '');
+    await prefs.setBool('user_is_verified', updated.isVerified);
+    if (updated.createdAt != null) {
+      await prefs.setString('user_created_at', updated.createdAt!.toIso8601String());
+    }
     notifyListeners();
   }
 }

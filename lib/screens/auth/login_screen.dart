@@ -4,6 +4,7 @@ import '../../services/auth_provider.dart';
 import '../../theme.dart';
 import 'register_screen.dart';
 import '../home/home_screen.dart';
+import '../admin/admin_screen.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -26,8 +27,12 @@ class _LoginScreenState extends State<LoginScreen> {
     if (err != null) {
       setState(() => _error = err);
     } else {
-      Navigator.pushReplacement(
-          context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+      final authState = context.read<AuthProvider>();
+      if (authState.user?.role == 'admin') {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminScreen()));
+      } else {
+        Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const HomeScreen()));
+      }
     }
   }
 
@@ -104,7 +109,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 onFieldSubmitted: (_) => _login(),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(

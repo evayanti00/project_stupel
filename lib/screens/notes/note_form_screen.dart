@@ -1,11 +1,16 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
+import 'package:flutter_quill/flutter_quill.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../models/models.dart';
 import '../../services/api_service.dart';
 import '../../theme.dart';
 
 class NoteFormScreen extends StatefulWidget {
   final Note? note;
-  const NoteFormScreen({super.key, this.note});
+  final bool initialIsTask;
+  const NoteFormScreen({super.key, this.note, this.initialIsTask = false});
 
   @override
   State<NoteFormScreen> createState() => _NoteFormScreenState();
@@ -14,23 +19,52 @@ class NoteFormScreen extends StatefulWidget {
 class _NoteFormScreenState extends State<NoteFormScreen> {
   final _titleCtrl = TextEditingController();
   final _contentCtrl = TextEditingController();
+  late QuillController _quillController;
   bool _isTask = false;
   DateTime? _dueDate;
   bool _saving = false;
   bool _deleting = false;
   String? _error;
+  final ImagePicker _picker = ImagePicker();
+  final List<String> _images = [];
+  String _priority = 'Sedang';
+  String _status = 'Belum Dimulai';
 
   bool get _isEdit => widget.note != null;
+  String get _entityName => _isTask ? 'Tugas' : 'Catatan';
 
   @override
   void initState() {
     super.initState();
+    _quillController = QuillController.basic();
+    _isTask = widget.initialIsTask;
     if (_isEdit) {
       _titleCtrl.text = widget.note!.title;
       _contentCtrl.text = widget.note!.content;
       _isTask = widget.note!.isTask;
       _dueDate = widget.note!.dueDate;
+      _images.addAll(widget.note!.images);
+      _priority = widget.note!.priority ?? _priority;
+      _status = widget.note!.status ?? _status;
+      try {
+        final data = jsonDecode(widget.note!.content);
+        final doc = Document.fromJson(data is List ? data : []);
+        _quillController = QuillController(document: doc, selection: const TextSelection.collapsed(offset: 0));
+      } catch (_) {
+        _quillController.document = Document()..insert(0, widget.note!.content);
+      }
     }
+  }
+
+  Future<void> _pickImages() async {
+    final picked = await _picker.pickMultiImage();
+    if (picked.isEmpty) return;
+    setState(() => _images.addAll(picked.map((e) => e.path)));
+  }
+
+  Future<void> _takeImage() async {
+    final picked = await _picker.pickImage(source: ImageSource.camera);
+    if (picked != null) setState(() => _images.add(picked.path));
   }
 
   Future<void> _pickDueDate() async {
@@ -53,14 +87,19 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
       _error = null;
     });
     try {
+      final contentJson = jsonEncode(_quillController.document.toDelta().toJson());
       final note = Note(
         id: widget.note?.id,
         title: _titleCtrl.text.trim(),
-        content: _contentCtrl.text.trim(),
+        content: contentJson,
         isTask: _isTask,
         isDone: widget.note?.isDone ?? false,
-          dueDate: _dueDate,
+        dueDate: _dueDate,
         createdAt: widget.note?.createdAt ?? DateTime.now(),
+        images: _images,
+        priority: _isTask ? _priority : null,
+        status: _isTask ? _status : null,
+        description: _titleCtrl.text.trim(),
       );
       final res = _isEdit
           ? await ApiService.updateNote(note)
@@ -81,8 +120,8 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (_) => AlertDialog(
-        title: const Text('Hapus Catatan'),
-        content: const Text('Apakah Anda yakin ingin menghapus catatan ini?'),
+        title: Text('Hapus $_entityName'),
+        content: Text('Apakah Anda yakin ingin menghapus ${_entityName.toLowerCase()} ini?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Batal')),
           TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Hapus')),
@@ -114,7 +153,7 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(_isEdit ? 'Edit Catatan' : 'Catatan Baru'),
+        title: Text(_isEdit ? 'Edit $_entityName' : '$_entityName Baru'),
         actions: [
           TextButton(
             onPressed: _saving ? null : _save,
@@ -197,16 +236,96 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
           TextFormField(
             controller: _titleCtrl,
             decoration: const InputDecoration(labelText: 'Judul *'),
-            style: const TextStyle(
-                fontSize: 16, fontWeight: FontWeight.w500),
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
           ),
           const SizedBox(height: 16),
-          TextFormField(
-            controller: _contentCtrl,
-            decoration: const InputDecoration(
-                labelText: 'Isi Catatan',
-                alignLabelWithHint: true),
-            maxLines: 8,
+          if (_isTask) ...[
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Prioritas', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: _priority,
+                      items: ['Rendah', 'Sedang', 'Tinggi'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                      onChanged: (v) => setState(() => _priority = v ?? 'Sedang'),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text('Status', style: TextStyle(fontWeight: FontWeight.w600)),
+                    const SizedBox(height: 8),
+                    DropdownButtonFormField<String>(
+                      value: _status,
+                      items: ['Belum Dimulai', 'Sedang Dikerjakan', 'Selesai'].map((e) => DropdownMenuItem(value: e, child: Text(e))).toList(),
+                      onChanged: (v) => setState(() => _status = v ?? 'Belum Dimulai'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+          ],
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Text('Lampiran Gambar', style: TextStyle(fontWeight: FontWeight.w600)),
+                      const Spacer(),
+                      IconButton(onPressed: _pickImages, icon: const Icon(Icons.photo_library_outlined)),
+                      IconButton(onPressed: _takeImage, icon: const Icon(Icons.camera_alt_outlined)),
+                    ],
+                  ),
+                  if (_images.isNotEmpty) ...[
+                    const SizedBox(height: 8),
+                    Wrap(
+                      spacing: 8,
+                      runSpacing: 8,
+                      children: _images.map((path) => SizedBox(width: 80, height: 80, child: Image.file(File(path), fit: BoxFit.cover))).toList(),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 16),
+          SizedBox(
+            height: 300,
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(8),
+                child: Column(
+                  children: [
+                    SizedBox(
+                      height: 56,
+                      child: QuillSimpleToolbar(
+                        controller: _quillController,
+                        config: const QuillSimpleToolbarConfig(
+                          showAlignmentButtons: true,
+                          showColorButton: true,
+                          showBackgroundColorButton: true,
+                          showQuote: true,
+                          showSubscript: false,
+                          showSuperscript: false,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Expanded(
+                      child: QuillEditor.basic(
+                        controller: _quillController,
+                        config: const QuillEditorConfig(),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
           ),
           if (_isEdit) ...[
             const SizedBox(height: 24),
@@ -218,7 +337,7 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
               ),
               onPressed: _deleting ? null : _confirmDelete,
               icon: const Icon(Icons.delete_outline),
-              label: Text(_deleting ? 'Menghapus...' : 'Hapus Catatan'),
+              label: Text(_deleting ? 'Menghapus...' : 'Hapus $_entityName'),
             ),
           ],
         ],

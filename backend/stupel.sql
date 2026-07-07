@@ -12,8 +12,15 @@ CREATE TABLE users (
   name VARCHAR(100) NOT NULL,
   email VARCHAR(100) NOT NULL UNIQUE,
   password VARCHAR(255) NOT NULL,
+  phone VARCHAR(30) NULL,
+  bio TEXT NULL,
+  profile_photo_url TEXT NULL,
   role ENUM('user', 'admin') DEFAULT 'user',
   is_verified TINYINT(1) DEFAULT 0,
+  is_active TINYINT(1) DEFAULT 1,
+  verification_token VARCHAR(255) NULL,
+  reset_token VARCHAR(255) NULL,
+  reset_expires_at DATETIME NULL,
   balance DECIMAL(12,2) DEFAULT 0,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -46,8 +53,8 @@ CREATE TABLE expenses (
 );
 
 -- Admin account default (password: admin123)
-INSERT INTO users (name, email, password, role)
-VALUES ('Admin', 'admin@stupel.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin');
+INSERT INTO users (name, email, password, role, is_verified, is_active)
+VALUES ('Admin', 'admin@stupel.com', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'admin', 1, 1);
 
 -- Invitations (admin can create tokens to invite users)
 CREATE TABLE IF NOT EXISTS invitations (

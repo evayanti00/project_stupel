@@ -33,22 +33,21 @@ if ($stmt->fetch()) {
     jsonResponse(false, 'Email sudah terdaftar');
 }
 
-$isVerified = 0;
+$isVerified = 1;
 if ($inviteToken) {
     $stmt = $db->prepare('SELECT id FROM invitations WHERE token = ? AND email = ? AND status = "pending"');
     $stmt->execute([$inviteToken, $email]);
     if (!$stmt->fetch()) {
         jsonResponse(false, 'Kode undangan tidak valid atau sudah digunakan');
     }
-    $isVerified = 1;
 }
 
 $hash = password_hash($password, PASSWORD_BCRYPT);
-$stmt = $db->prepare('INSERT INTO users (name, email, password, is_verified, balance) VALUES (?, ?, ?, ?, ?)');
+$stmt = $db->prepare('INSERT INTO users (name, email, password, is_verified, verification_token, balance) VALUES (?, ?, ?, ?, NULL, ?)');
 $stmt->execute([$name, $email, $hash, $isVerified, $balance]);
 
 if ($inviteToken) {
     $db->prepare('UPDATE invitations SET status = "used", used_at = NOW() WHERE token = ?')->execute([$inviteToken]);
 }
 
-jsonResponse(true, 'Akun berhasil dibuat');
+jsonResponse(true, 'Akun berhasil dibuat. Silakan login.');

@@ -5,6 +5,43 @@ define('DB_USER', 'root');
 define('DB_PASS', '');
 define('JWT_SECRET', 'stupel_secret_key_2024_ganti_ini');
 
+function ensureUserColumns(PDO $pdo): void {
+    $statements = [
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_active TINYINT(1) NOT NULL DEFAULT 1",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS verification_token VARCHAR(255) NULL",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_token VARCHAR(255) NULL",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS reset_expires_at DATETIME NULL",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(30) NULL",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS bio TEXT NULL",
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo_url TEXT NULL",
+    ];
+
+    foreach ($statements as $sql) {
+        try {
+            $pdo->exec($sql);
+        } catch (PDOException $e) {
+            // Ignore if the column already exists or the server doesn't support this syntax.
+        }
+    }
+}
+
+function ensureNoteColumns(PDO $pdo): void {
+    $statements = [
+        "ALTER TABLE notes ADD COLUMN IF NOT EXISTS images TEXT NULL",
+        "ALTER TABLE notes ADD COLUMN IF NOT EXISTS description TEXT NULL",
+        "ALTER TABLE notes ADD COLUMN IF NOT EXISTS priority VARCHAR(20) NULL",
+        "ALTER TABLE notes ADD COLUMN IF NOT EXISTS status VARCHAR(30) NULL",
+    ];
+
+    foreach ($statements as $sql) {
+        try {
+            $pdo->exec($sql);
+        } catch (PDOException $e) {
+            // Ignore if the column already exists or the server doesn't support this syntax.
+        }
+    }
+}
+
 function getDB(): PDO {
     static $pdo = null;
     if ($pdo === null) {
@@ -13,6 +50,8 @@ function getDB(): PDO {
             PDO::ATTR_ERRMODE            => PDO::ERRMODE_EXCEPTION,
             PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
         ]);
+        ensureUserColumns($pdo);
+        ensureNoteColumns($pdo);
     }
     return $pdo;
 }

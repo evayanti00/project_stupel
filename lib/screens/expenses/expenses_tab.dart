@@ -355,6 +355,7 @@ class _ExpensesTabState extends State<ExpensesTab> {
               ),
             ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'fab-expenses',
         onPressed: () => _openForm(null),
         backgroundColor: AppColors.success,
         icon: const Icon(Icons.add, color: Colors.white),

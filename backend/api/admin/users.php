@@ -9,12 +9,17 @@ $db   = getDB();
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
-    // Daftar semua user
-    $users = $db->query('SELECT id, name, email, role, created_at FROM users ORDER BY id')->fetchAll();
+    $users = $db->query(
+        'SELECT id, name, email, role, is_active, created_at, ' .
+        '(SELECT COUNT(*) FROM notes WHERE user_id = users.id) AS total_notes, ' .
+        '(SELECT COUNT(*) FROM notes WHERE user_id = users.id AND is_task = 1) AS total_tasks, ' .
+        '(SELECT COUNT(*) FROM expenses WHERE user_id = users.id) AS total_expenses, ' .
+        '(SELECT COALESCE(SUM(amount), 0) FROM expenses WHERE user_id = users.id) AS total_expense_amount ' .
+        'FROM users ORDER BY id'
+    )->fetchAll();
     jsonResponse(true, 'OK', $users);
 
 } elseif ($method === 'POST') {
-    // Tambah user
     $body     = getRequestBody();
     $name     = trim($body['name'] ?? '');
     $email    = trim($body['email'] ?? '');
@@ -28,7 +33,7 @@ if ($method === 'GET') {
     if ($stmt->fetch()) jsonResponse(false, 'Email sudah terdaftar');
 
     $hash = password_hash($password, PASSWORD_BCRYPT);
-    $stmt = $db->prepare('INSERT INTO users (name, email, password, role) VALUES (?, ?, ?, ?)');
+    $stmt = $db->prepare('INSERT INTO users (name, email, password, role, is_verified, is_active) VALUES (?, ?, ?, ?, 1, 1)');
     $stmt->execute([$name, $email, $hash, $role]);
     jsonResponse(true, 'User berhasil dibuat');
 

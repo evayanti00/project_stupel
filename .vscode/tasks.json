@@ -1,0 +1,168 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Terminal sanity check",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Write-Output 'TASK_OK'"
+			]
+		},
+		{
+			"label": "Flutter run windows diagnostic",
+			"type": "shell",
+			"command": "flutter",
+			"args": [
+				"run",
+				"-d",
+				"windows",
+				"-v"
+			],
+			"isBackground": false
+		},
+		{
+			"label": "Run EXE directly",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"Start-Process -FilePath '.\\\\build\\\\windows\\\\x64\\\\runner\\\\Debug\\\\project_stupel.exe' ; Start-Sleep -Seconds 2 ; Get-Process project_stupel -ErrorAction SilentlyContinue | Select-Object Id,ProcessName,MainWindowTitle | Format-Table -AutoSize | Out-String"
+			]
+		},
+		{
+			"label": "Run flutter and stop on prompt",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"flutter run -d windows"
+			],
+			"isBackground": true
+		},
+		{
+			"label": "Flutter run verify after notif fix",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"flutter run -d windows"
+			],
+			"isBackground": true
+		},
+		{
+			"label": "Flutter run after hero fix",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"flutter run -d windows"
+			],
+			"isBackground": true
+		},
+		{
+			"label": "Pub get and analyze after notes/profile fix",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"flutter pub get ; flutter analyze"
+			]
+		},
+		{
+			"label": "Run app verify quill localization fix",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"flutter run -d windows"
+			],
+			"isBackground": true
+		},
+		{
+			"label": "Validate admin changes",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"php -l backend/api/admin/users.php ; flutter analyze"
+			]
+		},
+		{
+			"label": "Check admin hash password",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"php -r \"$h='$2y$10$sRLDTDn08SWjK5jzLJn9UeioKH9kXvkmKsU0WVSJYbzZBdlCgQWQ2'; foreach('admin123','admin','password','123456' | %% { $_ }){}\""
+			]
+		},
+		{
+			"label": "Generate admin123 hash",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"-r",
+				"echo password_hash('admin123', PASSWORD_BCRYPT), PHP_EOL;"
+			]
+		},
+		{
+			"label": "Run hash script",
+			"type": "shell",
+			"command": "php",
+			"args": [
+				"scripts/genhash.php"
+			]
+		},
+		{
+			"label": "Validate SMTP PHP files",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"php -l backend/config/mail.php ; php -l backend/api/auth/register.php ; php -l backend/api/auth/resend-verification.php"
+			]
+		},
+		{
+			"label": "Lint updated admin PHP endpoints",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"php -l backend/api/admin/stats.php ; php -l backend/api/admin/users.php ; php -l backend/api/admin/user-detail.php"
+			]
+		},
+		{
+			"label": "Lint auth without verification",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"php -l backend/api/auth/login.php ; php -l backend/api/auth/register.php"
+			]
+		},
+		{
+			"label": "Lint verification-disabled auth endpoints",
+			"type": "shell",
+			"command": "powershell",
+			"args": [
+				"-NoProfile",
+				"-Command",
+				"php -l backend/api/auth/verify-status.php ; php -l backend/api/auth/resend-verification.php ; php -l backend/api/auth/verify-email.php ; php -l backend/api/auth/login.php ; php -l backend/api/auth/register.php"
+			]
+		}
+	]
+}

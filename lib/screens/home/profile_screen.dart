@@ -334,11 +334,18 @@ class _ProfileScreenState extends State<ProfileScreen> {
                         leading: const Icon(Icons.info_outline),
                         title: const Text('Tentang Aplikasi'),
                         onTap: () {
-                          showAboutDialog(
+                          showDialog<void>(
                             context: context,
-                            applicationName: 'STUPEL',
-                            applicationVersion: '1.0.0',
-                            applicationLegalese: 'Student Planner App',
+                            builder: (_) => AlertDialog(
+                              title: const Text('Versi Aplikasi'),
+                              content: const Text('1.0.0'),
+                              actions: [
+                                TextButton(
+                                  onPressed: () => Navigator.pop(context),
+                                  child: const Text('Tutup'),
+                                ),
+                              ],
+                            ),
                           );
                         },
                       ),

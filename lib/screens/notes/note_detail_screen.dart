@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:convert';
+import 'dart:io';
 
 import '../../models/models.dart';
 import '../../services/api_service.dart';
@@ -24,6 +25,7 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     super.initState();
     _currentContent = widget.note.content;
     _lines = _parseLines(_currentContent);
+    _appendMissingImageLines(widget.note.images);
   }
 
   List<_NoteLine> _parseLines(String raw) {
@@ -37,6 +39,14 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
           if (op is! Map) continue;
           final insert = op['insert'];
           final attrs = (op['attributes'] is Map) ? op['attributes'] as Map : const {};
+          if (insert is Map && insert['image'] is String) {
+            if (current.trim().isNotEmpty) {
+              result.add(_NoteLine(text: current));
+              current = '';
+            }
+            result.add(_NoteLine(imagePath: insert['image'].toString()));
+            continue;
+          }
           if (insert is! String) continue;
 
           final parts = insert.split('\n');
@@ -48,11 +58,14 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
 
             final listType = attrs['list']?.toString();
             if (listType == 'checked' || listType == 'unchecked') {
-              result.add(_NoteLine(
-                text: current.trim(),
-                isChecklist: true,
-                checked: listType == 'checked',
-              ));
+              final trimmed = current.trim();
+              if (trimmed.isNotEmpty) {
+                result.add(_NoteLine(
+                  text: trimmed,
+                  isChecklist: true,
+                  checked: listType == 'checked',
+                ));
+              }
             } else {
               result.add(_NoteLine(text: current));
             }
@@ -73,6 +86,18 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
     return [
       _NoteLine(text: widget.note.plainContent),
     ];
+  }
+
+  void _appendMissingImageLines(List<String> images) {
+    final existing = _lines
+        .where((l) => l.isImage && l.imagePath != null)
+        .map((l) => l.imagePath!)
+        .toSet();
+    for (final img in images) {
+      if (!existing.contains(img)) {
+        _lines.add(_NoteLine(imagePath: img));
+      }
+    }
   }
 
   String get _title => widget.note.isTask ? 'Detail Tugas' : 'Detail Catatan';
@@ -133,6 +158,14 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
   String _buildContentFromLines(List<_NoteLine> lines) {
     final ops = <Map<String, dynamic>>[];
     for (final line in lines) {
+      if (line.isImage && line.imagePath != null) {
+        ops.add({
+          'insert': {'image': line.imagePath}
+        });
+        ops.add({'insert': '\n'});
+        continue;
+      }
+
       final text = line.text;
       if (text.isNotEmpty) {
         ops.add({'insert': text});
@@ -216,6 +249,10 @@ class _NoteDetailScreenState extends State<NoteDetailScreen> {
                         separatorBuilder: (_, __) => const SizedBox(height: 6),
                         itemBuilder: (_, i) {
                           final line = _lines[i];
+                          if (line.isImage && line.imagePath != null) {
+                            return _DetailImage(path: line.imagePath!);
+                          }
+
                           if (!line.isChecklist) {
                             return Text(
                               line.text.trim().isEmpty ? ' ' : line.text,
@@ -266,18 +303,64 @@ class _NoteLine {
   final String text;
   final bool isChecklist;
   final bool checked;
+  final String? imagePath;
 
   const _NoteLine({
-    required this.text,
+    this.text = '',
     this.isChecklist = false,
     this.checked = false,
+    this.imagePath,
   });
 
-  _NoteLine copyWith({String? text, bool? isChecklist, bool? checked}) {
+  bool get isImage => imagePath != null && imagePath!.isNotEmpty;
+
+  _NoteLine copyWith({String? text, bool? isChecklist, bool? checked, String? imagePath}) {
     return _NoteLine(
       text: text ?? this.text,
       isChecklist: isChecklist ?? this.isChecklist,
       checked: checked ?? this.checked,
+      imagePath: imagePath ?? this.imagePath,
+    );
+  }
+}
+
+class _DetailImage extends StatelessWidget {
+  final String path;
+
+  const _DetailImage({required this.path});
+
+  @override
+  Widget build(BuildContext context) {
+    final uri = Uri.tryParse(path);
+    final isNetwork = uri != null &&
+        (uri.scheme.toLowerCase() == 'http' || uri.scheme.toLowerCase() == 'https');
+
+    final image = isNetwork
+        ? Image.network(
+            path,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined),
+          )
+        : Image.file(
+            File(path),
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined),
+          );
+
+    final available = MediaQuery.of(context).size.width - 40;
+    final targetWidth = available.clamp(180.0, 280.0).toDouble();
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          width: targetWidth,
+          height: 160,
+          color: const Color(0xFFF3F4F6),
+          child: image,
+        ),
+      ),
     );
   }
 }

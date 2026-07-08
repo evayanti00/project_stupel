@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_quill/flutter_quill.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../models/models.dart';
 import '../../services/api_service.dart';
 import '../../theme.dart';
@@ -25,7 +24,6 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
   bool _saving = false;
   bool _deleting = false;
   String? _error;
-  final ImagePicker _picker = ImagePicker();
   final List<String> _images = [];
   String _priority = 'Sedang';
   String _status = 'Belum Dimulai';
@@ -53,18 +51,37 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
       } catch (_) {
         _quillController.document = Document()..insert(0, widget.note!.content);
       }
+      _syncImagesIntoDocument();
     }
   }
 
-  Future<void> _pickImages() async {
-    final picked = await _picker.pickMultiImage();
-    if (picked.isEmpty) return;
-    setState(() => _images.addAll(picked.map((e) => e.path)));
+  void _insertImageIntoEditor(String path) {
+    final selection = _quillController.selection;
+    final index = selection.baseOffset >= 0
+        ? selection.baseOffset
+        : _quillController.document.length - 1;
+    _quillController.replaceText(
+      index,
+      0,
+      BlockEmbed.image(path),
+      TextSelection.collapsed(offset: index + 1),
+    );
+    _quillController.replaceText(index + 1, 0, '\n', TextSelection.collapsed(offset: index + 2));
   }
 
-  Future<void> _takeImage() async {
-    final picked = await _picker.pickImage(source: ImageSource.camera);
-    if (picked != null) setState(() => _images.add(picked.path));
+  void _syncImagesIntoDocument() {
+    final existing = <String>{};
+    for (final op in _quillController.document.toDelta().toJson().cast<Map<String, dynamic>>()) {
+      final insert = op['insert'];
+      if (insert is Map && insert['image'] is String) {
+        existing.add(insert['image'].toString());
+      }
+    }
+    for (final imagePath in _images) {
+      if (!existing.contains(imagePath)) {
+        _insertImageIntoEditor(imagePath);
+      }
+    }
   }
 
   Future<void> _pickDueDate() async {
@@ -267,32 +284,6 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
             ),
             const SizedBox(height: 12),
           ],
-          Card(
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
-                    children: [
-                      const Text('Lampiran Gambar', style: TextStyle(fontWeight: FontWeight.w600)),
-                      const Spacer(),
-                      IconButton(onPressed: _pickImages, icon: const Icon(Icons.photo_library_outlined)),
-                      IconButton(onPressed: _takeImage, icon: const Icon(Icons.camera_alt_outlined)),
-                    ],
-                  ),
-                  if (_images.isNotEmpty) ...[
-                    const SizedBox(height: 8),
-                    Wrap(
-                      spacing: 8,
-                      runSpacing: 8,
-                      children: _images.map((path) => SizedBox(width: 80, height: 80, child: Image.file(File(path), fit: BoxFit.cover))).toList(),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
           const SizedBox(height: 16),
           SizedBox(
             height: 300,
@@ -319,7 +310,9 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
                     Expanded(
                       child: QuillEditor.basic(
                         controller: _quillController,
-                        config: const QuillEditorConfig(),
+                        config: QuillEditorConfig(
+                          embedBuilders: const [_NoteImageEmbedBuilder()],
+                        ),
                       ),
                     ),
                   ],
@@ -341,6 +334,50 @@ class _NoteFormScreenState extends State<NoteFormScreen> {
             ),
           ],
         ],
+      ),
+    );
+  }
+
+}
+
+class _NoteImageEmbedBuilder extends EmbedBuilder {
+  const _NoteImageEmbedBuilder();
+
+  @override
+  String get key => BlockEmbed.imageType;
+
+  @override
+  bool get expanded => false;
+
+  @override
+  Widget build(BuildContext context, EmbedContext embedContext) {
+    final imagePath = embedContext.node.value.data.toString();
+    final uri = Uri.tryParse(imagePath);
+    final isNetwork = uri != null &&
+        (uri.scheme.toLowerCase() == 'http' || uri.scheme.toLowerCase() == 'https');
+
+    final image = isNetwork
+        ? Image.network(
+            imagePath,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined),
+          )
+        : Image.file(
+            File(imagePath),
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => const Icon(Icons.broken_image_outlined),
+          );
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 220,
+          height: 140,
+          color: const Color(0xFFF3F4F6),
+          child: image,
+        ),
       ),
     );
   }
